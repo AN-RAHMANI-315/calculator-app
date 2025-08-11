@@ -1,0 +1,28 @@
+{
+  "name": "calculator-app-frontend",
+  "version": "1.0.0",
+  "description": "Professional Calculator App - Frontend for Vercel Deployment",
+  "main": "public/index.html",
+  "scripts": {
+    "dev": "python -m http.server 8000 --directory public",
+    "build": "echo 'Build completed - static files ready'",
+    "start": "python -m http.server 8000 --directory public",
+    "deploy": "vercel --prod"
+  },
+  "keywords": [
+    "calculator",
+    "frontend",
+    "vercel",
+    "javascript",
+    "html",
+    "css"
+  ],
+  "author": "Abdul Naseer Ahmani",
+  "license": "MIT",
+  "devDependencies": {
+    "vercel": "^32.0.0"
+  },
+  "engines": {
+    "node": ">=14.x"
+  }
+}

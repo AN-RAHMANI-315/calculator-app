@@ -1,0 +1,508 @@
+pipeline {
+    agent any
+    
+    options {
+        // Keep builds for 30 days, max 10 builds
+        buildDiscarder(logRotator(daysToKeepStr: '30', numToKeepStr: '10'))
+        // Timeout after 30 minutes
+        timeout(time: 30, unit: 'MINUTES')
+        // Retry on failure
+        retry(1)
+        // Skip default checkout
+        skipDefaultCheckout()
+    }
+    
+    environment {
+        // Python environment variables
+        PYTHONPATH = "${WORKSPACE}/src"
+        PYTHONDONTWRITEBYTECODE = "1"
+        PYTHONUNBUFFERED = "1"
+        
+        // Application environment
+        FLASK_ENV = "testing"
+        SECRET_KEY = "jenkins-test-secret"
+        
+        // Tool versions
+        PYTHON_VERSION = "3.9"
+        
+        // Directories
+        VENV_DIR = "${WORKSPACE}/venv"
+        REPORTS_DIR = "${WORKSPACE}/reports"
+        ARTIFACTS_DIR = "${WORKSPACE}/artifacts"
+        
+        // Notification settings
+        SLACK_CHANNEL = "#devops-alerts"
+        EMAIL_RECIPIENTS = "devops-team@company.com"
+    }
+    
+    parameters {
+        choice(
+            name: 'DEPLOY_ENVIRONMENT',
+            choices: ['none', 'dev', 'staging', 'production'],
+            description: 'Environment to deploy to'
+        )
+        booleanParam(
+            name: 'SKIP_TESTS',
+            defaultValue: false,
+            description: 'Skip test execution (not recommended for production)'
+        )
+        booleanParam(
+            name: 'FORCE_DEPLOY',
+            defaultValue: false,
+            description: 'Force deployment even if quality gates fail'
+        )
+        string(
+            name: 'CUSTOM_TAG',
+            defaultValue: '',
+            description: 'Custom tag for Docker image (optional)'
+        )
+    }
+    
+    stages {
+        stage('Checkout & Setup') {
+            steps {
+                script {
+                    // Custom checkout with clean workspace
+                    deleteDir()
+                    checkout scm
+                    
+                    // Set build information
+                    currentBuild.displayName = "#${BUILD_NUMBER} - ${env.BRANCH_NAME}"
+                    currentBuild.description = "Pipeline for ${env.BRANCH_NAME} branch"
+                }
+                
+                // Create necessary directories
+                sh '''
+                    mkdir -p ${REPORTS_DIR}
+                    mkdir -p ${ARTIFACTS_DIR}
+                    mkdir -p ${VENV_DIR}
+                '''
+                
+                // Display environment info
+                sh '''
+                    echo "=== Environment Information ==="
+                    echo "Python Version: $(python3 --version)"
+                    echo "Pip Version: $(pip3 --version)"
+                    echo "Workspace: ${WORKSPACE}"
+                    echo "Branch: ${BRANCH_NAME}"
+                    echo "Build Number: ${BUILD_NUMBER}"
+                    echo "Deploy Environment: ${DEPLOY_ENVIRONMENT}"
+                    echo "================================"
+                '''
+            }
+        }
+        
+        stage('Python Environment Setup') {
+            steps {
+                sh '''
+                    # Create virtual environment
+                    python3 -m venv ${VENV_DIR}
+                    
+                    # Activate virtual environment and upgrade pip
+                    . ${VENV_DIR}/bin/activate
+                    pip install --upgrade pip setuptools wheel
+                    
+                    # Install dependencies
+                    pip install -r requirements-dev.txt
+                    
+                    # Display installed packages
+                    echo "=== Installed Packages ==="
+                    pip list
+                    echo "=========================="
+                '''
+            }
+            post {
+                always {
+                    // Archive pip freeze output
+                    sh '''
+                        . ${VENV_DIR}/bin/activate
+                        pip freeze > ${ARTIFACTS_DIR}/requirements-freeze.txt
+                    '''
+                }
+            }
+        }
+        
+        stage('Code Quality Analysis') {
+            parallel {
+                stage('Linting (Flake8)') {
+                    steps {
+                        sh '''
+                            . ${VENV_DIR}/bin/activate
+                            echo "Running Flake8 linting..."
+                            flake8 src/ tests/ --output-file=${REPORTS_DIR}/flake8-report.txt --tee || true
+                        '''
+                    }
+                    post {
+                        always {
+                            // Archive linting results
+                            archiveArtifacts artifacts: 'reports/flake8-report.txt', allowEmptyArchive: true
+                        }
+                    }
+                }
+                
+                stage('Code Formatting (Black)') {
+                    steps {
+                        sh '''
+                            . ${VENV_DIR}/bin/activate
+                            echo "Checking code formatting with Black..."
+                            black --check --diff src/ tests/ > ${REPORTS_DIR}/black-report.txt || true
+                        '''
+                    }
+                    post {
+                        always {
+                            archiveArtifacts artifacts: 'reports/black-report.txt', allowEmptyArchive: true
+                        }
+                    }
+                }
+                
+                stage('Security Scanning (Bandit)') {
+                    steps {
+                        sh '''
+                            . ${VENV_DIR}/bin/activate
+                            echo "Running security scan with Bandit..."
+                            bandit -r src/ -f json -o ${REPORTS_DIR}/bandit-report.json || true
+                            bandit -r src/ -f txt -o ${REPORTS_DIR}/bandit-report.txt || true
+                        '''
+                    }
+                    post {
+                        always {
+                            archiveArtifacts artifacts: 'reports/bandit-report.*', allowEmptyArchive: true
+                        }
+                    }
+                }
+                
+                stage('Dependency Security (Safety)') {
+                    steps {
+                        sh '''
+                            . ${VENV_DIR}/bin/activate
+                            echo "Checking dependencies for security vulnerabilities..."
+                            safety check --json --output ${REPORTS_DIR}/safety-report.json || true
+                            safety check --output ${REPORTS_DIR}/safety-report.txt || true
+                        '''
+                    }
+                    post {
+                        always {
+                            archiveArtifacts artifacts: 'reports/safety-report.*', allowEmptyArchive: true
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Testing') {
+            when {
+                not { params.SKIP_TESTS }
+            }
+            parallel {
+                stage('Unit Tests') {
+                    steps {
+                        sh '''
+                            . ${VENV_DIR}/bin/activate
+                            echo "Running unit tests..."
+                            pytest tests/test_calculator.py -v \
+                                --junitxml=${REPORTS_DIR}/junit-unit.xml \
+                                --cov=src \
+                                --cov-report=xml:${REPORTS_DIR}/coverage-unit.xml \
+                                --cov-report=html:${REPORTS_DIR}/htmlcov-unit \
+                                --html=${REPORTS_DIR}/pytest-unit-report.html \
+                                --self-contained-html \
+                                -m "not slow"
+                        '''
+                    }
+                    post {
+                        always {
+                            // Publish test results
+                            publishTestResults testResultsPattern: 'reports/junit-unit.xml'
+                            
+                            // Publish coverage
+                            publishCoverage adapters: [coberturaAdapter('reports/coverage-unit.xml')], 
+                                sourceFileResolver: sourceFiles('STORE_LAST_BUILD')
+                            
+                            // Archive test artifacts
+                            archiveArtifacts artifacts: 'reports/pytest-unit-report.html,reports/htmlcov-unit/**', 
+                                allowEmptyArchive: true
+                        }
+                    }
+                }
+                
+                stage('Integration Tests') {
+                    steps {
+                        sh '''
+                            . ${VENV_DIR}/bin/activate
+                            echo "Running integration tests..."
+                            pytest tests/test_integration.py -v \
+                                --junitxml=${REPORTS_DIR}/junit-integration.xml \
+                                --cov=src \
+                                --cov-report=xml:${REPORTS_DIR}/coverage-integration.xml \
+                                --cov-report=html:${REPORTS_DIR}/htmlcov-integration \
+                                --html=${REPORTS_DIR}/pytest-integration-report.html \
+                                --self-contained-html \
+                                -m "integration"
+                        '''
+                    }
+                    post {
+                        always {
+                            publishTestResults testResultsPattern: 'reports/junit-integration.xml'
+                            archiveArtifacts artifacts: 'reports/pytest-integration-report.html,reports/htmlcov-integration/**', 
+                                allowEmptyArchive: true
+                        }
+                    }
+                }
+                
+                stage('Performance Tests') {
+                    steps {
+                        sh '''
+                            . ${VENV_DIR}/bin/activate
+                            echo "Running performance tests..."
+                            pytest tests/ -v \
+                                --junitxml=${REPORTS_DIR}/junit-performance.xml \
+                                --html=${REPORTS_DIR}/pytest-performance-report.html \
+                                --self-contained-html \
+                                -m "slow" \
+                                --tb=short
+                        '''
+                    }
+                    post {
+                        always {
+                            publishTestResults testResultsPattern: 'reports/junit-performance.xml'
+                            archiveArtifacts artifacts: 'reports/pytest-performance-report.html', 
+                                allowEmptyArchive: true
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Build Application') {
+            steps {
+                script {
+                    // Set version information
+                    def version = env.BRANCH_NAME == 'main' ? "${BUILD_NUMBER}" : "${env.BRANCH_NAME}-${BUILD_NUMBER}"
+                    def customTag = params.CUSTOM_TAG ?: version
+                    env.APP_VERSION = version
+                    env.DOCKER_TAG = customTag
+                }
+                
+                sh '''
+                    . ${VENV_DIR}/bin/activate
+                    
+                    echo "Building application package..."
+                    
+                    # Create distribution package
+                    python setup.py sdist bdist_wheel
+                    
+                    # Copy artifacts
+                    cp -r dist/* ${ARTIFACTS_DIR}/
+                    
+                    echo "Build completed successfully!"
+                    echo "Version: ${APP_VERSION}"
+                    echo "Docker Tag: ${DOCKER_TAG}"
+                '''
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'artifacts/**', allowEmptyArchive: true
+                }
+            }
+        }
+        
+        stage('Docker Build') {
+            steps {
+                script {
+                    def dockerImage = docker.build("anrahmani007/calculator-app:${env.DOCKER_TAG}")
+                    
+                    // Tag for different environments
+                    dockerImage.tag("anrahmani007/calculator-app:latest")
+                    if (env.BRANCH_NAME == 'main') {
+                        dockerImage.tag("anrahmani007/calculator-app:stable")
+                    }
+                    
+                    env.DOCKER_IMAGE_ID = dockerImage.id
+                }
+            }
+        }
+        
+        stage('Docker Push') {
+            steps {
+                script {
+                    docker.withRegistry('https://registry.hub.docker.com', 'docker-hub-creds') {
+                        def dockerImage = docker.image("anrahmani007/calculator-app:${env.DOCKER_TAG}")
+                        dockerImage.push()
+                        dockerImage.push("latest")
+                        
+                        if (env.BRANCH_NAME == 'main') {
+                            dockerImage.push("stable")
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Quality Gates') {
+            steps {
+                script {
+                    def qualityPassed = true
+                    def issues = []
+                    
+                    // Check test coverage (if not skipped)
+                    if (!params.SKIP_TESTS) {
+                        def coverage = sh(
+                            script: '. ${VENV_DIR}/bin/activate && coverage report --show-missing | grep TOTAL | awk \'{print $4}\' | sed \'s/%//\'',
+                            returnStdout: true
+                        ).trim() as Integer
+                        
+                        if (coverage < 85) {
+                            issues.add("Code coverage is ${coverage}%, minimum required is 85%")
+                            qualityPassed = false
+                        }
+                    }
+                    
+                    // Check for critical security issues
+                    def banditOutput = readFile("${REPORTS_DIR}/bandit-report.txt")
+                    if (banditOutput.contains("SEVERITY: HIGH") && !params.FORCE_DEPLOY) {
+                        issues.add("High severity security issues found")
+                        qualityPassed = false
+                    }
+                    
+                    // Report quality gate results
+                    if (!qualityPassed) {
+                        currentBuild.result = 'UNSTABLE'
+                        echo "Quality Gates FAILED:"
+                        issues.each { issue ->
+                            echo "  - ${issue}"
+                        }
+                        
+                        if (!params.FORCE_DEPLOY) {
+                            error("Quality gates failed and FORCE_DEPLOY is not enabled")
+                        } else {
+                            echo "Quality gates failed but FORCE_DEPLOY is enabled, continuing..."
+                        }
+                    } else {
+                        echo "Quality Gates PASSED - All checks successful!"
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy') {
+            when {
+                anyOf {
+                    expression { params.DEPLOY_ENVIRONMENT != 'none' }
+                    expression { env.BRANCH_NAME == 'main' && params.DEPLOY_ENVIRONMENT == 'none' }
+                }
+            }
+            steps {
+                script {
+                    def targetEnv = params.DEPLOY_ENVIRONMENT != 'none' ? params.DEPLOY_ENVIRONMENT : 'dev'
+                    
+                    echo "Deploying to ${targetEnv} environment..."
+                    
+                    // Run deployment script
+                    sh """
+                        chmod +x jenkins/deploy-scripts/deploy.sh
+                        ./jenkins/deploy-scripts/deploy.sh ${targetEnv} ${env.DOCKER_TAG}
+                    """
+                    
+                    // Update deployment status
+                    currentBuild.description += " | Deployed to: ${targetEnv}"
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            script {
+                def duration = currentBuild.durationString.replace(' and counting', '')
+                def status = currentBuild.result ?: 'SUCCESS'
+                
+                echo """
+                =================================
+                 PIPELINE EXECUTION SUMMARY
+                =================================
+                Status: ${status}
+                Duration: ${duration}
+                Branch: ${env.BRANCH_NAME}
+                Build: #${BUILD_NUMBER}
+                Environment: ${params.DEPLOY_ENVIRONMENT}
+                =================================
+                """
+            }
+            
+            // Clean up workspace but keep artifacts
+            cleanWs(
+                cleanWhenNotBuilt: false,
+                deleteDirs: true,
+                disableDeferredWipeout: true,
+                notFailBuild: true,
+                patterns: [
+                    [pattern: 'reports/**', type: 'EXCLUDE'],
+                    [pattern: 'artifacts/**', type: 'EXCLUDE']
+                ]
+            )
+        }
+        
+        success {
+            script {
+                if (env.BRANCH_NAME == 'main') {
+                    // Send success notification for main branch
+                    slackSend(
+                        channel: env.SLACK_CHANNEL,
+                        color: 'good',
+                        message: """
+                        ✅ *Calculator App Pipeline SUCCESS*
+                        Branch: ${env.BRANCH_NAME}
+                        Build: #${BUILD_NUMBER}
+                        Duration: ${currentBuild.durationString}
+                        Environment: ${params.DEPLOY_ENVIRONMENT}
+                        """.stripIndent()
+                    )
+                }
+            }
+        }
+        
+        failure {
+            slackSend(
+                channel: env.SLACK_CHANNEL,
+                color: 'danger',
+                message: """
+                ❌ *Calculator App Pipeline FAILED*
+                Branch: ${env.BRANCH_NAME}
+                Build: #${BUILD_NUMBER}
+                Error: ${currentBuild.description}
+                Duration: ${currentBuild.durationString}
+                """.stripIndent()
+            )
+            
+            emailext(
+                to: env.EMAIL_RECIPIENTS,
+                subject: "Pipeline Failed: Calculator App - ${env.BRANCH_NAME} #${BUILD_NUMBER}",
+                body: """
+                Pipeline execution failed for Calculator App.
+                
+                Details:
+                - Branch: ${env.BRANCH_NAME}
+                - Build Number: ${BUILD_NUMBER}
+                - Duration: ${currentBuild.durationString}
+                - Console Output: ${BUILD_URL}console
+                
+                Please check the Jenkins console for more details.
+                """.stripIndent()
+            )
+        }
+        
+        unstable {
+            slackSend(
+                channel: env.SLACK_CHANNEL,
+                color: 'warning',
+                message: """
+                ⚠️ *Calculator App Pipeline UNSTABLE*
+                Branch: ${env.BRANCH_NAME}
+                Build: #${BUILD_NUMBER}
+                Issues: Quality gates failed but deployment continued
+                Duration: ${currentBuild.durationString}
+                """.stripIndent()
+            )
+        }
+    }
+}

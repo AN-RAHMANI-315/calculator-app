@@ -1,0 +1,261 @@
+pipeline {
+    agent any
+    
+    options {
+        buildDiscarder(logRotator(daysToKeepStr: '7', numToKeepStr: '20'))
+        timeout(time: 20, unit: 'MINUTES')
+        skipDefaultCheckout()
+    }
+    
+    environment {
+        PYTHONPATH = "${WORKSPACE}/src"
+        PYTHONDONTWRITEBYTECODE = "1"
+        PYTHONUNBUFFERED = "1"
+        FLASK_ENV = "development"
+        VENV_DIR = "${WORKSPACE}/venv"
+        REPORTS_DIR = "${WORKSPACE}/reports"
+    }
+    
+    triggers {
+        // Poll SCM every 5 minutes for development branches
+        pollSCM('H/5 * * * *')
+        
+        // Build when changes are pushed (requires webhook setup)
+        githubPush()
+    }
+    
+    stages {
+        stage('Fast Checkout') {
+            steps {
+                deleteDir()
+                checkout scm
+                
+                sh '''
+                    mkdir -p ${REPORTS_DIR}
+                    echo "=== Development Pipeline ==="
+                    echo "Branch: ${BRANCH_NAME}"
+                    echo "Commit: ${GIT_COMMIT}"
+                    echo "=========================="
+                '''
+            }
+        }
+        
+        stage('Quick Setup') {
+            steps {
+                sh '''
+                    # Quick virtual environment setup
+                    python3 -m venv ${VENV_DIR}
+                    . ${VENV_DIR}/bin/activate
+                    
+                    # Install only essential dependencies for fast feedback
+                    pip install --upgrade pip
+                    pip install pytest flake8 black
+                    pip install -r requirements.txt
+                '''
+            }
+        }
+        
+        stage('Fast Quality Checks') {
+            parallel {
+                stage('Quick Lint') {
+                    steps {
+                        sh '''
+                            . ${VENV_DIR}/bin/activate
+                            echo "Quick linting check..."
+                            flake8 src/ --select=E9,F63,F7,F82 --show-source
+                        '''
+                    }
+                }
+                
+                stage('Import Check') {
+                    steps {
+                        sh '''
+                            . ${VENV_DIR}/bin/activate
+                            echo "Checking Python imports..."
+                            python -c "import src.calculator; print('✓ Calculator module imports successfully')"
+                        '''
+                    }
+                }
+                
+                stage('Syntax Check') {
+                    steps {
+                        sh '''
+                            . ${VENV_DIR}/bin/activate
+                            echo "Checking Python syntax..."
+                            python -m py_compile src/calculator.py
+                            python -m py_compile src/cli.py
+                            python -m py_compile src/web_app.py
+                            echo "✓ All Python files have valid syntax"
+                        '''
+                    }
+                }
+            }
+        }
+        
+        stage('Quick Tests') {
+            steps {
+                sh '''
+                    . ${VENV_DIR}/bin/activate
+                    echo "Running quick smoke tests..."
+                    
+                    # Install test dependencies
+                    pip install pytest-cov
+                    
+                    # Run only unit tests, skip slow tests
+                    pytest tests/test_calculator.py -v \
+                        -x \
+                        --tb=short \
+                        -m "not slow" \
+                        --junitxml=${REPORTS_DIR}/junit-quick.xml
+                '''
+            }
+            post {
+                always {
+                    publishTestResults testResultsPattern: 'reports/junit-quick.xml'
+                }
+            }
+        }
+        
+        stage('Auto-format (Dev Only)') {
+            when {
+                anyOf {
+                    branch 'develop'
+                    branch 'feature/*'
+                }
+            }
+            steps {
+                script {
+                    def changes = sh(
+                        script: '''
+                            . ${VENV_DIR}/bin/activate
+                            black --check src/ tests/ 2>&1 | grep "would reformat" | wc -l
+                        ''',
+                        returnStdout: true
+                    ).trim() as Integer
+                    
+                    if (changes > 0) {
+                        echo "Code formatting issues found. Auto-formatting..."
+                        sh '''
+                            . ${VENV_DIR}/bin/activate
+                            black src/ tests/
+                            
+                            # Check if there are changes to commit
+                            if ! git diff --quiet; then
+                                echo "Formatted files:"
+                                git diff --name-only
+                                
+                                # Configure git (use Jenkins credentials)
+                                git config user.name "Jenkins Auto-formatter"
+                                git config user.email "jenkins@company.com"
+                                
+                                # Commit formatted changes
+                                git add .
+                                git commit -m "Auto-format code [skip ci]"
+                                
+                                # Push changes back (requires proper credentials setup)
+                                # git push origin HEAD:${BRANCH_NAME}
+                                
+                                echo "⚠️ Code was auto-formatted. Please pull latest changes."
+                            else
+                                echo "✓ Code is already properly formatted"
+                            fi
+                        '''
+                    } else {
+                        echo "✓ Code formatting is correct"
+                    }
+                }
+            }
+        }
+        
+        stage('Development Deployment') {
+            when {
+                anyOf {
+                    branch 'develop'
+                    branch 'feature/*'
+                }
+            }
+            steps {
+                sh '''
+                    echo "Preparing development deployment..."
+                    
+                    # Create simple deployment package
+                    tar -czf calculator-dev-${BUILD_NUMBER}.tar.gz src/ requirements.txt
+                    
+                    # Simulate deployment to dev environment
+                    echo "Deploying to development environment..."
+                    echo "Application URL: http://dev-calculator.company.com"
+                    echo "Health Check: http://dev-calculator.company.com/health"
+                '''
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'calculator-dev-*.tar.gz', allowEmptyArchive: true
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            script {
+                def duration = currentBuild.durationString.replace(' and counting', '')
+                def status = currentBuild.result ?: 'SUCCESS'
+                
+                echo """
+                ============================
+                 DEV PIPELINE SUMMARY
+                ============================
+                Status: ${status}
+                Duration: ${duration}
+                Branch: ${env.BRANCH_NAME}
+                Build: #${BUILD_NUMBER}
+                ============================
+                """
+            }
+            
+            // Quick cleanup - keep workspace small
+            sh '''
+                rm -rf ${VENV_DIR}
+                rm -rf reports/
+            '''
+        }
+        
+        success {
+            script {
+                if (env.BRANCH_NAME.startsWith('feature/')) {
+                    // Notify about successful feature branch build
+                    echo "✅ Feature branch ${env.BRANCH_NAME} build successful"
+                    // Can add Slack notification for important features
+                }
+            }
+        }
+        
+        failure {
+            // Quick notification for development failures
+            slackSend(
+                channel: '#dev-alerts',
+                color: 'warning',
+                message: """
+                🔥 *Dev Pipeline Failed*
+                Branch: ${env.BRANCH_NAME}
+                Build: #${BUILD_NUMBER}
+                Quick fix needed! 🛠️
+                """.stripIndent()
+            )
+        }
+        
+        fixed {
+            // Notify when a previously failing build is fixed
+            slackSend(
+                channel: '#dev-alerts',
+                color: 'good',
+                message: """
+                🎉 *Dev Pipeline Fixed!*
+                Branch: ${env.BRANCH_NAME}
+                Build: #${BUILD_NUMBER}
+                Great work team! 👏
+                """.stripIndent()
+            )
+        }
+    }
+}

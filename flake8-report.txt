@@ -1,0 +1,26 @@
+[1msrc/calculator.py[m[36m:[m42[36m:[m89[36m:[m [1m[31mE501[m line too long (95 > 88 characters)
+[1msrc/calculator.py[m[36m:[m56[36m:[m89[36m:[m [1m[31mE501[m line too long (100 > 88 characters)
+[1msrc/cli.py[m[36m:[m111[36m:[m89[36m:[m [1m[31mE501[m line too long (89 > 88 characters)
+[1msrc/cli.py[m[36m:[m113[36m:[m1[36m:[m [1m[31mW293[m blank line contains whitespace
+[1msrc/cli.py[m[36m:[m116[36m:[m89[36m:[m [1m[31mE501[m line too long (90 > 88 characters)
+[1msrc/cli.py[m[36m:[m117[36m:[m1[36m:[m [1m[31mW293[m blank line contains whitespace
+[1msrc/cli.py[m[36m:[m133[36m:[m1[36m:[m [1m[31mW293[m blank line contains whitespace
+[1msrc/cli.py[m[36m:[m138[36m:[m1[36m:[m [1m[31mW293[m blank line contains whitespace
+[1msrc/cli.py[m[36m:[m151[36m:[m1[36m:[m [1m[31mW293[m blank line contains whitespace
+[1msrc/cli.py[m[36m:[m157[36m:[m1[36m:[m [1m[31mW293[m blank line contains whitespace
+[1msrc/cli.py[m[36m:[m176[36m:[m1[36m:[m [1m[31mW293[m blank line contains whitespace
+[1msrc/cli.py[m[36m:[m181[36m:[m1[36m:[m [1m[31mW293[m blank line contains whitespace
+[1msrc/cli.py[m[36m:[m192[36m:[m1[36m:[m [1m[31mW293[m blank line contains whitespace
+[1msrc/web_app.py[m[36m:[m18[36m:[m1[36m:[m [1m[31mW293[m blank line contains whitespace
+[1msrc/web_app.py[m[36m:[m44[36m:[m1[36m:[m [1m[31mW293[m blank line contains whitespace
+[1msrc/web_app.py[m[36m:[m46[36m:[m1[36m:[m [1m[31mW293[m blank line contains whitespace
+[1msrc/web_app.py[m[36m:[m63[36m:[m1[36m:[m [1m[31mW293[m blank line contains whitespace
+[1msrc/web_app.py[m[36m:[m65[36m:[m1[36m:[m [1m[31mW293[m blank line contains whitespace
+[1msrc/web_app.py[m[36m:[m70[36m:[m1[36m:[m [1m[31mW293[m blank line contains whitespace
+[1msrc/web_app.py[m[36m:[m73[36m:[m5[36m:[m [1m[31mF841[m local variable 'e' is assigned to but never used
+[1msrc/web_app.py[m[36m:[m84[36m:[m1[36m:[m [1m[31mW293[m blank line contains whitespace
+[1msrc/web_app.py[m[36m:[m86[36m:[m1[36m:[m [1m[31mW293[m blank line contains whitespace
+[1msrc/web_app.py[m[36m:[m93[36m:[m1[36m:[m [1m[31mW293[m blank line contains whitespace
+[1msrc/web_app.py[m[36m:[m95[36m:[m1[36m:[m [1m[31mW293[m blank line contains whitespace
+[1msrc/web_app.py[m[36m:[m100[36m:[m1[36m:[m [1m[31mW293[m blank line contains whitespace
+[1msrc/web_app.py[m[36m:[m103[36m:[m5[36m:[m [1m[31mF841[m local variable 'e' is assigned to but never used
