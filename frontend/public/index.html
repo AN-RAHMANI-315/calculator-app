@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculator App - Frontend</title>
+    <meta name="description" content="Professional Calculator App with multiple mathematical operations">
+    <meta name="keywords" content="calculator, math, frontend, javascript, vercel">
+    <meta name="author" content="Abdul Naseer Ahmani">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧮</text></svg>">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+        
+        .calculator {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            box-sizing: border-box;
+            transition: background 0.3s ease;
+        }
+        
+        input:focus, select:focus {
+            background: rgba(255, 255, 255, 0.3);
+            outline: none;
+        }
+        
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        select {
+            background: rgba(255, 255, 255, 0.2);
+            cursor: pointer;
+        }
+        
+        select option {
+            background: #667eea;
+            color: white;
+        }
+        
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(45deg, #ff6b6b, #ffa500);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-bottom: 10px;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            word-break: break-all;
+        }
+        
+        .history {
+            margin-top: 30px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+        }
+        
+        .history h3 {
+            margin-top: 0;
+            color: #ffa500;
+        }
+        
+        .history-item {
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            font-family: 'Courier New', monospace;
+        }
+        
+        .history-item:last-child {
+            border-bottom: none;
+        }
+        
+        .error {
+            color: #ff6b6b;
+            background: rgba(255, 107, 107, 0.1);
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        
+        .success {
+            color: #4caf50;
+            background: rgba(76, 175, 80, 0.1);
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        
+        .single-value {
+            display: none;
+            margin-top: 10px;
+        }
+        
+        .two-values {
+            display: block;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            font-size: 14px;
+            opacity: 0.8;
+        }
+        
+        .footer a {
+            color: #ffa500;
+            text-decoration: none;
+        }
+        
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                margin: 20px auto;
+                padding: 10px;
+            }
+            
+            .calculator {
+                padding: 20px;
+            }
+            
+            h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="calculator">
+        <h1>🧮 Calculator App</h1>
+        
+        <div class="input-group">
+            <label for="operation">Operation:</label>
+            <select id="operation" onchange="toggleInputs()">
+                <option value="add">Addition (+)</option>
+                <option value="subtract">Subtraction (-)</option>
+                <option value="multiply">Multiplication (×)</option>
+                <option value="divide">Division (÷)</option>
+                <option value="power">Power (^)</option>
+                <option value="modulo">Modulo (%)</option>
+                <option value="percentage">Percentage</option>
+                <option value="sqrt">Square Root (√)</option>
+                <option value="factorial">Factorial (!)</option>
+            </select>
+        </div>
+
+        <div class="two-values" id="two-values">
+            <div class="input-group">
+                <label for="num1">First Number:</label>
+                <input type="number" id="num1" placeholder="Enter first number" step="any">
+            </div>
+            <div class="input-group">
+                <label for="num2">Second Number:</label>
+                <input type="number" id="num2" placeholder="Enter second number" step="any">
+            </div>
+        </div>
+
+        <div class="single-value" id="single-value">
+            <div class="input-group">
+                <label for="num">Number:</label>
+                <input type="number" id="num" placeholder="Enter number" step="any">
+            </div>
+        </div>
+
+        <button onclick="calculate()">Calculate</button>
+        <button onclick="clearHistory()" style="background: linear-gradient(45deg, #6c757d, #495057);">Clear History</button>
+
+        <div class="result" id="result">
+            Result will appear here
+        </div>
+
+        <div class="history">
+            <h3>📊 Recent History</h3>
+            <div id="history-list">
+                No calculations yet
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>Built with ❤️ for Vercel Deployment</p>
+        <p>Frontend Calculator App | DevOps Pipeline Ready</p>
+    </div>
+
+    <script>
+        // Calculator class for client-side operations
+        class Calculator {
+            constructor() {
+                this.history = JSON.parse(localStorage.getItem('calculatorHistory')) || [];
+            }
+
+            add(a, b) {
+                const result = a + b;
+                this.addToHistory(`${a} + ${b} = ${result}`);
+                return result;
+            }
+
+            subtract(a, b) {
+                const result = a - b;
+                this.addToHistory(`${a} - ${b} = ${result}`);
+                return result;
+            }
+
+            multiply(a, b) {
+                const result = a * b;
+                this.addToHistory(`${a} × ${b} = ${result}`);
+                return result;
+            }
+
+            divide(a, b) {
+                if (b === 0) {
+                    throw new Error('Division by zero is not allowed');
+                }
+                const result = a / b;
+                this.addToHistory(`${a} ÷ ${b} = ${result}`);
+                return result;
+            }
+
+            power(a, b) {
+                const result = Math.pow(a, b);
+                this.addToHistory(`${a} ^ ${b} = ${result}`);
+                return result;
+            }
+
+            modulo(a, b) {
+                if (b === 0) {
+                    throw new Error('Modulo by zero is not allowed');
+                }
+                const result = a % b;
+                this.addToHistory(`${a} % ${b} = ${result}`);
+                return result;
+            }
+
+            percentage(a, b) {
+                const result = (a * b) / 100;
+                this.addToHistory(`${a}% of ${b} = ${result}`);
+                return result;
+            }
+
+            sqrt(a) {
+                if (a < 0) {
+                    throw new Error('Cannot calculate square root of negative number');
+                }
+                const result = Math.sqrt(a);
+                this.addToHistory(`√${a} = ${result}`);
+                return result;
+            }
+
+            factorial(n) {
+                if (n < 0 || !Number.isInteger(n)) {
+                    throw new Error('Factorial is only defined for non-negative integers');
+                }
+                if (n > 170) {
+                    throw new Error('Factorial too large (overflow)');
+                }
+                let result = 1;
+                for (let i = 2; i <= n; i++) {
+                    result *= i;
+                }
+                this.addToHistory(`${n}! = ${result}`);
+                return result;
+            }
+
+            addToHistory(entry) {
+                this.history.push(entry);
+                if (this.history.length > 10) {
+                    this.history.shift(); // Keep only last 10 entries
+                }
+                localStorage.setItem('calculatorHistory', JSON.stringify(this.history));
+            }
+
+            getHistory() {
+                return this.history;
+            }
+
+            clearHistory() {
+                this.history = [];
+                localStorage.removeItem('calculatorHistory');
+            }
+        }
+
+        // Global calculator instance
+        const calculator = new Calculator();
+
+        function toggleInputs() {
+            const operation = document.getElementById('operation').value;
+            const twoValues = document.getElementById('two-values');
+            const singleValue = document.getElementById('single-value');
+            
+            if (operation === 'sqrt' || operation === 'factorial') {
+                twoValues.style.display = 'none';
+                singleValue.style.display = 'block';
+            } else {
+                twoValues.style.display = 'block';
+                singleValue.style.display = 'none';
+            }
+        }
+
+        function calculate() {
+            const operation = document.getElementById('operation').value;
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                let result;
+                
+                if (operation === 'sqrt' || operation === 'factorial') {
+                    const value = parseFloat(document.getElementById('num').value);
+                    if (isNaN(value)) {
+                        showError('Please enter a valid number');
+                        return;
+                    }
+                    
+                    if (operation === 'sqrt') {
+                        result = calculator.sqrt(value);
+                    } else if (operation === 'factorial') {
+                        result = calculator.factorial(value);
+                    }
+                } else {
+                    const a = parseFloat(document.getElementById('num1').value);
+                    const b = parseFloat(document.getElementById('num2').value);
+                    
+                    if (isNaN(a) || isNaN(b)) {
+                        showError('Please enter valid numbers');
+                        return;
+                    }
+                    
+                    switch (operation) {
+                        case 'add':
+                            result = calculator.add(a, b);
+                            break;
+                        case 'subtract':
+                            result = calculator.subtract(a, b);
+                            break;
+                        case 'multiply':
+                            result = calculator.multiply(a, b);
+                            break;
+                        case 'divide':
+                            result = calculator.divide(a, b);
+                            break;
+                        case 'power':
+                            result = calculator.power(a, b);
+                            break;
+                        case 'modulo':
+                            result = calculator.modulo(a, b);
+                            break;
+                        case 'percentage':
+                            result = calculator.percentage(a, b);
+                            break;
+                        default:
+                            throw new Error('Invalid operation');
+                    }
+                }
+                
+                // Format result for display
+                const formattedResult = Number.isInteger(result) ? result.toString() : result.toFixed(6).replace(/\.?0+$/, '');
+                resultDiv.innerHTML = `<div class="success">✅ Result: ${formattedResult}</div>`;
+                updateHistory();
+                
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        function showError(message) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `<div class="error">❌ Error: ${message}</div>`;
+        }
+
+        function updateHistory() {
+            const historyList = document.getElementById('history-list');
+            const history = calculator.getHistory();
+            if (history && history.length > 0) {
+                historyList.innerHTML = history
+                    .slice(-5) // Show last 5 entries
+                    .reverse() // Show newest first
+                    .map(item => `<div class="history-item">${item}</div>`)
+                    .join('');
+            } else {
+                historyList.innerHTML = 'No calculations yet';
+            }
+        }
+
+        function clearHistory() {
+            calculator.clearHistory();
+            updateHistory();
+            document.getElementById('result').innerHTML = '<div class="success">✅ History cleared successfully</div>';
+        }
+
+        // Initialize page
+        window.onload = function() {
+            toggleInputs();
+            updateHistory();
+            
+            // Add keyboard support
+            document.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    calculate();
+                }
+            });
+        };
+
+        // Add some animations
+        document.addEventListener('DOMContentLoaded', function() {
+            const calculator = document.querySelector('.calculator');
+            calculator.style.opacity = '0';
+            calculator.style.transform = 'translateY(20px)';
+            
+            setTimeout(() => {
+                calculator.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+                calculator.style.opacity = '1';
+                calculator.style.transform = 'translateY(0)';
+            }, 100);
+        });
+    </script>
+</body>
+</html>
