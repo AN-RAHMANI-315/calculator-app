@@ -70,7 +70,7 @@ calculator-app/
 
 ```bash
 # Local development
-git clone https://github.com/your-username/calculator-app.git
+git clone https://github.com/AN-RAHMANI-315/calculator-app.git
 cd calculator-app
 python -m http.server 8000 --directory public
 # Visit http://localhost:8000
@@ -87,7 +87,7 @@ docker run -d -p 5001:5000 --name calculator anrahmani007/calculator-app:latest
 
 ```bash
 # Development with Docker Compose
-git clone https://github.com/your-username/calculator-app.git
+git clone https://github.com/AN-RAHMANI-315/calculator-app.git
 cd calculator-app
 docker-compose -f docker/docker-compose.yml up -d
 
@@ -98,7 +98,7 @@ docker-compose -f docker/docker-compose.yml up -d
 
 ```bash
 # Clone and setup
-git clone https://github.com/your-username/calculator-app.git
+git clone https://github.com/AN-RAHMANI-315/calculator-app.git
 cd calculator-app
 
 # Python virtual environment
@@ -288,8 +288,8 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 ## 👨‍💻 Author
 
 **Abdul Naseer Ahmani**  
-[![GitHub](https://img.shields.io/badge/GitHub-anrahmani007-black?style=flat&logo=github)](https://github.com/anrahmani007)
-[![Email](https://img.shields.io/badge/Email-Contact-blue?style=flat&logo=gmail)](mailto:your-email@example.com)
+[![GitHub](https://img.shields.io/badge/GitHub-AN--RAHMANI--315-black?style=flat&logo=github)](https://github.com/AN-RAHMANI-315)
+[![Email](https://img.shields.io/badge/Email-Contact-blue?style=flat&logo=gmail)](mailto:anrahmani315@gmail.com)
 
 ## 🌟 Show Your Support
 
